@@ -56,6 +56,32 @@ public class ReservaServicio {
         }
         return false;
     }
+    
+    public String aprobar(int id) {
+    for (Reserva r : reservas) {
+        if (r.getId() == id) {
+            if (r.getEstado() != EstadoReserva.PENDIENTE) {
+                return "Solo se pueden aprobar reservas en estado PENDIENTE.";
+            }
+            r.setEstado(EstadoReserva.APROBADA);
+            return null;
+        }
+    }
+    return "Reserva no encontrada.";
+}
+
+public String rechazar(int id) {
+    for (Reserva r : reservas) {
+        if (r.getId() == id) {
+            if (r.getEstado() != EstadoReserva.PENDIENTE) {
+                return "Solo se pueden rechazar reservas en estado PENDIENTE.";
+            }
+            r.setEstado(EstadoReserva.RECHAZADA);
+            return null;
+        }
+    }
+    return "Reserva no encontrada.";
+}
 
     public List<Reserva> listar() {
         return reservas;

@@ -9,7 +9,8 @@ package modelo;
  * @author allan
  */
 public enum EstadoReserva {
-    PENDIENTE,
+     PENDIENTE,
     APROBADA,
+    RECHAZADA,
     CANCELADA
 }

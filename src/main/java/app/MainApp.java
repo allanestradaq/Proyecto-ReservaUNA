@@ -4,34 +4,31 @@
 
 package app;
 
-/**
- *
- * @author allan
- */
 import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.geometry.Insets;
 import javafx.stage.Stage;
 import modelo.Espacio;
 import modelo.Equipo;
 import modelo.Usuario;
 import servicio.RecursoServicio;
 import servicio.ReservaServicio;
-import vista.LoginVista;
+import vista.AprobacionReservasVista;
 import vista.RecursosVista;
+import vista.ReservaVista;
+import vista.UsuariosVista;
 
 import java.util.ArrayList;
 import java.util.List;
-import vista.ReservaVista;
 
 public class MainApp extends Application {
 
-    // Servicios compartidos durante toda la sesión
-    private final RecursoServicio recursoServicio = new RecursoServicio();
-    private final ReservaServicio reservaServicio = new ReservaServicio();
-    private final List<Usuario> usuarios = new ArrayList<>();
+    private RecursoServicio recursoServicio = new RecursoServicio();
+    private ReservaServicio reservaServicio = new ReservaServicio();
+    private List<Usuario> usuarios = new ArrayList<>();
 
     @Override
     public void start(Stage primaryStage) {
@@ -39,9 +36,6 @@ public class MainApp extends Application {
         mostrarLogin(primaryStage);
     }
 
-    /**
-     * Datos de prueba para poder iniciar sesión y probar el sistema.
-     */
     private void cargarDatosIniciales() {
         usuarios.add(new Usuario(1, "Administrador", "admin@una.ac.cr", "admin123", "ADMIN"));
         usuarios.add(new Usuario(2, "María González", "maria@una.ac.cr", "pass123", "USUARIO"));
@@ -52,28 +46,28 @@ public class MainApp extends Application {
                 "Proyector BenQ", "Proyector HDMI portátil", "BenQ", "MX505", "SN-00123"));
     }
 
+    //login
+ 
     public void mostrarLogin(Stage stage) {
-        LoginVista login = new LoginVista(stage, usuarios) {
-            // Sobrescribe el comportamiento interno de abrirMenuPrincipal
-        };
+        Label titulo = new Label("ReservaUNA");
+        titulo.setStyle("-fx-font-size: 22px; -fx-font-weight: bold;");
 
-        // Redefine el comportamiento del login directamente aquí
-        javafx.geometry.Insets padding = new Insets(30);
-
-        Label titulo = new Label("ReservaUNA — Inicio de sesión");
-        titulo.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
+        Label subtitulo = new Label("Inicio de sesión");
+        subtitulo.setStyle("-fx-font-size: 14px; -fx-text-fill: #555;");
 
         TextField campoCorreo = new TextField();
         campoCorreo.setPromptText("Correo");
+        campoCorreo.setMaxWidth(280);
 
         PasswordField campoContrasena = new PasswordField();
         campoContrasena.setPromptText("Contraseña");
+        campoContrasena.setMaxWidth(280);
 
         Label mensaje = new Label();
         mensaje.setStyle("-fx-text-fill: red;");
 
         Button btnEntrar = new Button("Entrar");
-        btnEntrar.setMaxWidth(Double.MAX_VALUE);
+        btnEntrar.setMinWidth(280);
 
         btnEntrar.setOnAction(e -> {
             String correo = campoCorreo.getText().trim();
@@ -99,63 +93,97 @@ public class MainApp extends Application {
             }
         });
 
-        VBox layout = new VBox(12, titulo, campoCorreo, campoContrasena, btnEntrar, mensaje);
-        layout.setPadding(padding);
-        layout.setAlignment(javafx.geometry.Pos.CENTER);
+        campoContrasena.setOnAction(e -> btnEntrar.fire());
+
+        VBox layout = new VBox(10, titulo, subtitulo,
+                new Label("Correo:"), campoCorreo,
+                new Label("Contraseña:"), campoContrasena,
+                btnEntrar, mensaje);
+        layout.setAlignment(Pos.CENTER_LEFT);
+        layout.setPadding(new Insets(30));
         layout.setMaxWidth(320);
 
         VBox contenedor = new VBox(layout);
-        contenedor.setAlignment(javafx.geometry.Pos.CENTER);
+        contenedor.setAlignment(Pos.CENTER);
         contenedor.setPadding(new Insets(40));
 
-        Scene escena = new Scene(contenedor, 420, 320);
+        stage.setScene(new Scene(contenedor, 440, 360));
         stage.setTitle("ReservaUNA — Login");
-        stage.setScene(escena);
         stage.show();
     }
 
+    //menu
     private void mostrarMenuPrincipal(Stage stage, Usuario usuario) {
-        Label titulo = new Label("Bienvenido/a, " + usuario.getNombre()
+        Label titulo = new Label("ReservaUNA");
+        titulo.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
+
+        Label infoUsuario = new Label("Sesión: " + usuario.getNombre()
                 + "  |  Rol: " + usuario.getRol());
-        titulo.setStyle("-fx-font-size: 15px; -fx-font-weight: bold;");
+        infoUsuario.setStyle("-fx-text-fill: #444; -fx-font-size: 12px;");
 
-        Button btnRecursos = new Button("Gestionar Recursos");
-        Button btnReservas = new Button("Gestionar Reservas");
-        Button btnSalir = new Button("Cerrar sesión");
+        VBox botones = new VBox(10);
+        botones.setAlignment(Pos.CENTER);
 
-        btnRecursos.setMinWidth(200);
-        btnReservas.setMinWidth(200);
-        btnSalir.setMinWidth(200);
-
-        // Solo el admin puede gestionar recursos
-        btnRecursos.setDisable(!usuario.getRol().equals("ADMIN"));
-
-        btnRecursos.setOnAction(e -> {
-            RecursosVista rv = new RecursosVista(stage, usuario, recursoServicio);
+        // Opción disponible para todos los roles
+        Button btnReservas = boton("📅  Mis reservas");
+        btnReservas.setOnAction(e -> {
+            ReservaVista rv = new ReservaVista(
+                    stage, usuario, recursoServicio, reservaServicio);
             rv.mostrar();
             agregarBotonVolver(stage, usuario);
         });
+        botones.getChildren().add(btnReservas);
 
-        btnReservas.setOnAction(e -> {
-            ReservaVista resv = new ReservaVista(stage, usuario, recursoServicio, reservaServicio);
-            resv.mostrar();
-            agregarBotonVolver(stage, usuario);
-        });
+        // exclucivo admin
+        if (usuario.getRol().equals("ADMIN")) {
 
+            Button btnRecursos = boton("🏫  Gestionar recursos");
+            btnRecursos.setOnAction(e -> {
+                RecursosVista rv = new RecursosVista(stage, usuario, recursoServicio);
+                rv.mostrar();
+                agregarBotonVolver(stage, usuario);
+            });
+
+            Button btnUsuarios = boton("👤  Gestionar usuarios");
+            btnUsuarios.setOnAction(e -> {
+                UsuariosVista uv = new UsuariosVista(stage, usuarios);
+                uv.mostrar();
+                agregarBotonVolver(stage, usuario);
+            });
+
+            Button btnAprobacion = boton("✔  Aprobar / rechazar reservas");
+            btnAprobacion.setOnAction(e -> {
+                AprobacionReservasVista av =
+                        new AprobacionReservasVista(stage, reservaServicio);
+                av.mostrar();
+                agregarBotonVolver(stage, usuario);
+            });
+
+            botones.getChildren().addAll(btnRecursos, btnUsuarios, btnAprobacion);
+        }
+
+        Button btnSalir = boton("🚪  Cerrar sesión");
+        btnSalir.setStyle("-fx-base: #e0e0e0;");
         btnSalir.setOnAction(e -> mostrarLogin(stage));
+        botones.getChildren().add(btnSalir);
 
-        VBox menu = new VBox(14, titulo, btnRecursos, btnReservas, btnSalir);
-        menu.setPadding(new Insets(40));
-        menu.setAlignment(javafx.geometry.Pos.CENTER);
+        VBox raiz = new VBox(12, titulo, infoUsuario, new Separator(), botones);
+        raiz.setPadding(new Insets(30));
+        raiz.setAlignment(Pos.TOP_CENTER);
 
-        Scene escena = new Scene(menu, 380, 280);
-        stage.setScene(escena);
+        int alto = usuario.getRol().equals("ADMIN") ? 370 : 230;
+        stage.setScene(new Scene(raiz, 380, alto));
         stage.setTitle("ReservaUNA — Menú principal");
     }
 
-    /**
-     * Agrega un botón "Volver al menú" en la parte inferior de la escena actual.
-     */
+ 
+    private Button boton(String texto) {
+        Button b = new Button(texto);
+        b.setMinWidth(280);
+        b.setAlignment(Pos.CENTER_LEFT);
+        return b;
+    }
+
     private void agregarBotonVolver(Stage stage, Usuario usuario) {
         Scene escenaActual = stage.getScene();
         if (escenaActual.getRoot() instanceof VBox raiz) {
