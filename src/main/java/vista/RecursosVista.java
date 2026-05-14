@@ -4,6 +4,7 @@
  */
 package vista;
 
+import Dao.RecursoDAO;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -15,20 +16,19 @@ import modelo.Equipo;
 import modelo.Espacio;
 import modelo.Recurso;
 import modelo.Usuario;
-import servicio.RecursoServicio;
 
 public class RecursosVista {
 
     private Stage stage;
     private Usuario usuarioActual;
-    private RecursoServicio recursoServicio;
+    private RecursoDAO recursoDAO;
     private ObservableList<Recurso> listaObservable;
 
-    public RecursosVista(Stage stage, Usuario usuarioActual, RecursoServicio recursoServicio) {
+    public RecursosVista(Stage stage, Usuario usuarioActual, RecursoDAO recursoDAO) {
         this.stage = stage;
         this.usuarioActual = usuarioActual;
-        this.recursoServicio = recursoServicio;
-        this.listaObservable = FXCollections.observableArrayList(recursoServicio.listar());
+        this.recursoDAO = recursoDAO;
+        this.listaObservable = FXCollections.observableArrayList(recursoDAO.listar());
     }
 
     public void mostrar() {
@@ -36,46 +36,31 @@ public class RecursosVista {
         comboTipo.getItems().addAll("Espacio", "Equipo");
         comboTipo.setValue("Espacio");
 
-        TextField campoNombre = new TextField();
-        campoNombre.setPromptText("Nombre del recurso");
+        TextField campoNombre      = new TextField(); campoNombre.setPromptText("Nombre");
+        TextField campoDesc        = new TextField(); campoDesc.setPromptText("Descripción");
 
-        TextField campoDesc = new TextField();
-        campoDesc.setPromptText("Descripción");
-
-        // Campos de Espacio
-        TextField campoCapacidad   = new TextField();
-        campoCapacidad.setPromptText("Capacidad (número)");
-        TextField campoUbicacion   = new TextField();
-        campoUbicacion.setPromptText("Ubicación");
-        TextField campoTipoEspacio = new TextField();
-        campoTipoEspacio.setPromptText("Tipo (Aula / Lab)");
+        TextField campoCapacidad   = new TextField(); campoCapacidad.setPromptText("Capacidad");
+        TextField campoUbicacion   = new TextField(); campoUbicacion.setPromptText("Ubicación");
+        TextField campoTipoEspacio = new TextField(); campoTipoEspacio.setPromptText("Tipo (Aula/Lab)");
         VBox camposEspacio = new VBox(6, campoCapacidad, campoUbicacion, campoTipoEspacio);
 
-        // Campos de Equipo
-        TextField campoMarca  = new TextField();
-        campoMarca.setPromptText("Marca");
-        TextField campoModelo = new TextField();
-        campoModelo.setPromptText("Modelo");
-        TextField campoSerial = new TextField();
-        campoSerial.setPromptText("Serial");
+        TextField campoMarca  = new TextField(); campoMarca.setPromptText("Marca");
+        TextField campoModelo = new TextField(); campoModelo.setPromptText("Modelo");
+        TextField campoSerial = new TextField(); campoSerial.setPromptText("Serial");
         VBox camposEquipo = new VBox(6, campoMarca, campoModelo, campoSerial);
         camposEquipo.setVisible(false);
         camposEquipo.setManaged(false);
 
         comboTipo.setOnAction(e -> {
             boolean esEspacio = comboTipo.getValue().equals("Espacio");
-            camposEspacio.setVisible(esEspacio);
-            camposEspacio.setManaged(esEspacio);
-            camposEquipo.setVisible(!esEspacio);
-            camposEquipo.setManaged(!esEspacio);
+            camposEspacio.setVisible(esEspacio);  camposEspacio.setManaged(esEspacio);
+            camposEquipo.setVisible(!esEspacio);  camposEquipo.setManaged(!esEspacio);
         });
 
-        Label mensajeError = new Label();
-        mensajeError.setStyle("-fx-text-fill: red;");
-        Label mensajeOk = new Label();
-        mensajeOk.setStyle("-fx-text-fill: green;");
+        Label mensajeError = new Label(); mensajeError.setStyle("-fx-text-fill: red;");
+        Label mensajeOk    = new Label(); mensajeOk.setStyle("-fx-text-fill: green;");
 
-        Button btnAgregar = new Button("Agregar recurso");
+        Button btnAgregar  = new Button("Agregar recurso");
         btnAgregar.setMaxWidth(Double.MAX_VALUE);
 
         ListView<Recurso> lista = new ListView<>(listaObservable);
@@ -85,8 +70,7 @@ public class RecursosVista {
         btnEliminar.setMaxWidth(Double.MAX_VALUE);
 
         btnAgregar.setOnAction(e -> {
-            mensajeError.setText("");
-            mensajeOk.setText("");
+            mensajeError.setText(""); mensajeOk.setText("");
             String nombre = campoNombre.getText().trim();
             String desc   = campoDesc.getText().trim();
 
@@ -95,8 +79,7 @@ public class RecursosVista {
                 return;
             }
 
-            int id = recursoServicio.siguienteId();
-
+            Recurso nuevo;
             if (comboTipo.getValue().equals("Espacio")) {
                 String capStr = campoCapacidad.getText().trim();
                 String ubic   = campoUbicacion.getText().trim();
@@ -106,8 +89,8 @@ public class RecursosVista {
                     return;
                 }
                 try {
-                    int cap = Integer.parseInt(capStr);
-                    recursoServicio.agregar(new Espacio(id, nombre, desc, cap, ubic, tipoE));
+                    nuevo = new Espacio(0, nombre, desc,
+                            Integer.parseInt(capStr), ubic, tipoE);
                 } catch (NumberFormatException ex) {
                     mensajeError.setText("La capacidad debe ser un número entero.");
                     return;
@@ -120,26 +103,29 @@ public class RecursosVista {
                     mensajeError.setText("Complete todos los campos del equipo.");
                     return;
                 }
-                recursoServicio.agregar(new Equipo(id, nombre, desc, marca, modelo, serial));
+                nuevo = new Equipo(0, nombre, desc, marca, modelo, serial);
             }
 
-            listaObservable.setAll(recursoServicio.listar());
-            limpiar(campoNombre, campoDesc, campoCapacidad, campoUbicacion,
-                    campoTipoEspacio, campoMarca, campoModelo, campoSerial);
-            mensajeOk.setText("Recurso agregado correctamente.");
+            if (recursoDAO.insertar(nuevo)) {
+                listaObservable.setAll(recursoDAO.listar());
+                limpiar(campoNombre, campoDesc, campoCapacidad, campoUbicacion,
+                        campoTipoEspacio, campoMarca, campoModelo, campoSerial);
+                mensajeOk.setText("Recurso guardado correctamente.");
+            } else {
+                mensajeError.setText("No se pudo guardar el recurso.");
+            }
         });
 
         btnEliminar.setOnAction(e -> {
-            mensajeError.setText("");
-            mensajeOk.setText("");
+            mensajeError.setText(""); mensajeOk.setText("");
             Recurso sel = lista.getSelectionModel().getSelectedItem();
-            if (sel == null) {
-                mensajeError.setText("Seleccione un recurso de la lista.");
-                return;
+            if (sel == null) { mensajeError.setText("Seleccione un recurso."); return; }
+            if (recursoDAO.eliminar(sel.getId())) {
+                listaObservable.setAll(recursoDAO.listar());
+                mensajeOk.setText("Recurso eliminado.");
+            } else {
+                mensajeError.setText("No se pudo eliminar el recurso.");
             }
-            recursoServicio.eliminar(sel.getId());
-            listaObservable.setAll(recursoServicio.listar());
-            mensajeOk.setText("Recurso eliminado.");
         });
 
         VBox formulario = new VBox(8,
@@ -148,20 +134,16 @@ public class RecursosVista {
                 new Label("Descripción:"), campoDesc,
                 camposEspacio, camposEquipo,
                 mensajeError, mensajeOk, btnAgregar);
-        formulario.setPadding(new Insets(10));
-        formulario.setMinWidth(260);
+        formulario.setPadding(new Insets(10)); formulario.setMinWidth(260);
 
         VBox panelLista = new VBox(8,
                 new Label("Recursos registrados:"), lista, btnEliminar);
         panelLista.setPadding(new Insets(10));
 
-        HBox contenido = new HBox(20, formulario, panelLista);
-        contenido.setPadding(new Insets(20));
-
         Label titulo = new Label("Gestión de Recursos");
         titulo.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
-        VBox raiz = new VBox(10, titulo, contenido);
+        VBox raiz = new VBox(10, titulo, new HBox(20, formulario, panelLista));
         raiz.setPadding(new Insets(15));
 
         stage.setScene(new Scene(raiz, 720, 500));

@@ -1,6 +1,11 @@
+config\ConexionBD.class
 vista\AprobacionReservasVista.class
 vista\ReservaVista$1.class
 vista\UsuariosVista.class
+Dao\ReservaDAO.class
+app\PruebaConexion.class
+Dao\RecursoDAO.class
 vista\AprobacionReservasVista$1.class
 vista\AprobacionReservasVista$2.class
+Dao\UsuarioDAO.class
 vista\ReservaVista$2.class

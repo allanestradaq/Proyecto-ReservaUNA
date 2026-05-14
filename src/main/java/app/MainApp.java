@@ -4,6 +4,9 @@
 
 package app;
 
+import Dao.RecursoDAO;
+import Dao.ReservaDAO;
+import Dao.UsuarioDAO;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -11,43 +14,28 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
-import modelo.Espacio;
-import modelo.Equipo;
+import modelo.Recurso;
 import modelo.Usuario;
-import servicio.RecursoServicio;
-import servicio.ReservaServicio;
 import vista.AprobacionReservasVista;
 import vista.RecursosVista;
 import vista.ReservaVista;
 import vista.UsuariosVista;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class MainApp extends Application {
 
-    private RecursoServicio recursoServicio = new RecursoServicio();
-    private ReservaServicio reservaServicio = new ReservaServicio();
-    private List<Usuario> usuarios = new ArrayList<>();
+    // DAO
+    private final UsuarioDAO usuarioDAO   = new UsuarioDAO();
+    private final RecursoDAO recursoDAO   = new RecursoDAO();
+    private final ReservaDAO reservaDAO   = new ReservaDAO();
 
     @Override
     public void start(Stage primaryStage) {
-        cargarDatosIniciales();
         mostrarLogin(primaryStage);
     }
 
-    private void cargarDatosIniciales() {
-        usuarios.add(new Usuario(1, "Administrador", "admin@una.ac.cr", "admin123", "ADMIN"));
-        usuarios.add(new Usuario(2, "María González", "maria@una.ac.cr", "pass123", "USUARIO"));
-
-        recursoServicio.agregar(new Espacio(recursoServicio.siguienteId(),
-                "Aula 101", "Aula general planta baja", 30, "Edificio A", "Aula"));
-        recursoServicio.agregar(new Equipo(recursoServicio.siguienteId(),
-                "Proyector BenQ", "Proyector HDMI portátil", "BenQ", "MX505", "SN-00123"));
-    }
-
-    //login
- 
+    // login
     public void mostrarLogin(Stage stage) {
         Label titulo = new Label("ReservaUNA");
         titulo.setStyle("-fx-font-size: 22px; -fx-font-weight: bold;");
@@ -71,25 +59,20 @@ public class MainApp extends Application {
 
         btnEntrar.setOnAction(e -> {
             String correo = campoCorreo.getText().trim();
-            String clave = campoContrasena.getText().trim();
+            String clave  = campoContrasena.getText().trim();
 
             if (correo.isEmpty() || clave.isEmpty()) {
                 mensaje.setText("Complete todos los campos.");
                 return;
             }
 
-            Usuario encontrado = null;
-            for (Usuario u : usuarios) {
-                if (u.getCorreo().equals(correo) && u.getContrasena().equals(clave)) {
-                    encontrado = u;
-                    break;
-                }
-            }
+            // Autenticación DB
+            Usuario usuario = usuarioDAO.autenticar(correo, clave);
 
-            if (encontrado == null) {
+            if (usuario == null) {
                 mensaje.setText("Correo o contraseña incorrectos.");
             } else {
-                mostrarMenuPrincipal(stage, encontrado);
+                mostrarMenuPrincipal(stage, usuario);
             }
         });
 
@@ -112,7 +95,7 @@ public class MainApp extends Application {
         stage.show();
     }
 
-    //menu
+    // menu
     private void mostrarMenuPrincipal(Stage stage, Usuario usuario) {
         Label titulo = new Label("ReservaUNA");
         titulo.setStyle("-fx-font-size: 20px; -fx-font-weight: bold;");
@@ -124,37 +107,39 @@ public class MainApp extends Application {
         VBox botones = new VBox(10);
         botones.setAlignment(Pos.CENTER);
 
-        // Opción disponible para todos los roles
         Button btnReservas = boton("📅  Mis reservas");
         btnReservas.setOnAction(e -> {
+            List<Recurso> recursos = recursoDAO.listar();
+            List<Usuario> usuarios = usuarioDAO.listar();
             ReservaVista rv = new ReservaVista(
-                    stage, usuario, recursoServicio, reservaServicio);
+                    stage, usuario, recursos, usuarios, reservaDAO);
             rv.mostrar();
             agregarBotonVolver(stage, usuario);
         });
         botones.getChildren().add(btnReservas);
 
-        // exclucivo admin
         if (usuario.getRol().equals("ADMIN")) {
 
             Button btnRecursos = boton("🏫  Gestionar recursos");
             btnRecursos.setOnAction(e -> {
-                RecursosVista rv = new RecursosVista(stage, usuario, recursoServicio);
+                RecursosVista rv = new RecursosVista(stage, usuario, recursoDAO);
                 rv.mostrar();
                 agregarBotonVolver(stage, usuario);
             });
 
             Button btnUsuarios = boton("👤  Gestionar usuarios");
             btnUsuarios.setOnAction(e -> {
-                UsuariosVista uv = new UsuariosVista(stage, usuarios);
+                UsuariosVista uv = new UsuariosVista(stage, usuarioDAO);
                 uv.mostrar();
                 agregarBotonVolver(stage, usuario);
             });
 
             Button btnAprobacion = boton("✔  Aprobar / rechazar reservas");
             btnAprobacion.setOnAction(e -> {
-                AprobacionReservasVista av =
-                        new AprobacionReservasVista(stage, reservaServicio);
+                List<Recurso> recursos = recursoDAO.listar();
+                List<Usuario> usuarios = usuarioDAO.listar();
+                AprobacionReservasVista av = new AprobacionReservasVista(
+                        stage, reservaDAO, recursos, usuarios);
                 av.mostrar();
                 agregarBotonVolver(stage, usuario);
             });
@@ -176,7 +161,6 @@ public class MainApp extends Application {
         stage.setTitle("ReservaUNA — Menú principal");
     }
 
- 
     private Button boton(String texto) {
         Button b = new Button(texto);
         b.setMinWidth(280);

@@ -4,6 +4,7 @@
  */
 package vista;
 
+import Dao.ReservaDAO;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -12,18 +13,30 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import modelo.EstadoReserva;
+import modelo.Recurso;
 import modelo.Reserva;
-import servicio.ReservaServicio;
+import modelo.Usuario;
+
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 public class AprobacionReservasVista {
 
+    private static final DateTimeFormatter FORMATO =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
     private Stage stage;
-    private ReservaServicio reservaServicio;
+    private ReservaDAO reservaDAO;
+    private List<Recurso> recursos;
+    private List<Usuario> usuarios;
     private ObservableList<Reserva> listaObservable;
 
-    public AprobacionReservasVista(Stage stage, ReservaServicio reservaServicio) {
+    public AprobacionReservasVista(Stage stage, ReservaDAO reservaDAO,
+                                   List<Recurso> recursos, List<Usuario> usuarios) {
         this.stage = stage;
-        this.reservaServicio = reservaServicio;
+        this.reservaDAO = reservaDAO;
+        this.recursos = recursos;
+        this.usuarios = usuarios;
         this.listaObservable = FXCollections.observableArrayList();
     }
 
@@ -43,33 +56,27 @@ public class AprobacionReservasVista {
             @Override
             protected void updateItem(Reserva r, boolean empty) {
                 super.updateItem(r, empty);
-                if (empty || r == null) {
-                    setText(null);
-                    setStyle("");
-                } else {
-                    setText(String.format("[%s] #%d — %s | %s | %s → %s | Motivo: %s",
-                            r.getEstado(), r.getId(),
-                            r.getUsuario().getNombre(),
-                            r.getRecurso().getNombre(),
-                            r.getInicio().toLocalDate(),
-                            r.getFin().toLocalDate(),
-                            r.getMotivo()));
-                    switch (r.getEstado()) {
-                        case PENDIENTE -> setStyle("-fx-text-fill: #b06000;");
-                        case APROBADA  -> setStyle("-fx-text-fill: #1a7a1a;");
-                        case RECHAZADA -> setStyle("-fx-text-fill: #aa0000;");
-                        case CANCELADA -> setStyle("-fx-text-fill: #888888;");
-                    }
+                if (empty || r == null) { setText(null); setStyle(""); return; }
+                setText(String.format("[%s] #%d — %s | %s | %s → %s | Motivo: %s",
+                        r.getEstado(), r.getId(),
+                        r.getUsuario().getNombre(),
+                        r.getRecurso().getNombre(),
+                        r.getInicio().format(FORMATO),
+                        r.getFin().format(FORMATO),
+                        r.getMotivo()));
+                switch (r.getEstado()) {
+                    case PENDIENTE -> setStyle("-fx-text-fill: #b06000;");
+                    case APROBADA  -> setStyle("-fx-text-fill: #1a7a1a;");
+                    case RECHAZADA -> setStyle("-fx-text-fill: #aa0000;");
+                    case CANCELADA -> setStyle("-fx-text-fill: #888888;");
                 }
             }
         });
 
-        Label mensajeError = new Label();
-        mensajeError.setStyle("-fx-text-fill: red;");
-        Label mensajeOk = new Label();
-        mensajeOk.setStyle("-fx-text-fill: green;");
+        Label mensajeError = new Label(); mensajeError.setStyle("-fx-text-fill: red;");
+        Label mensajeOk    = new Label(); mensajeOk.setStyle("-fx-text-fill: green;");
 
-        Button btnAprobar = new Button("✔ Aprobar");
+        Button btnAprobar  = new Button("✔ Aprobar");
         Button btnRechazar = new Button("✘ Rechazar");
         btnAprobar.setMinWidth(120);
         btnRechazar.setMinWidth(120);
@@ -82,18 +89,26 @@ public class AprobacionReservasVista {
             mensajeError.setText(""); mensajeOk.setText("");
             Reserva sel = lista.getSelectionModel().getSelectedItem();
             if (sel == null) { mensajeError.setText("Seleccione una reserva."); return; }
-            String err = reservaServicio.aprobar(sel.getId());
-            if (err != null) mensajeError.setText(err);
-            else { mensajeOk.setText("Reserva #" + sel.getId() + " aprobada."); aplicarFiltro(comboFiltro.getValue()); }
+            if (sel.getEstado() != EstadoReserva.PENDIENTE) {
+                mensajeError.setText("Solo se pueden aprobar reservas PENDIENTES.");
+                return;
+            }
+            reservaDAO.cambiarEstado(sel.getId(), EstadoReserva.APROBADA);
+            mensajeOk.setText("Reserva #" + sel.getId() + " aprobada.");
+            aplicarFiltro(comboFiltro.getValue());
         });
 
         btnRechazar.setOnAction(e -> {
             mensajeError.setText(""); mensajeOk.setText("");
             Reserva sel = lista.getSelectionModel().getSelectedItem();
             if (sel == null) { mensajeError.setText("Seleccione una reserva."); return; }
-            String err = reservaServicio.rechazar(sel.getId());
-            if (err != null) mensajeError.setText(err);
-            else { mensajeOk.setText("Reserva #" + sel.getId() + " rechazada."); aplicarFiltro(comboFiltro.getValue()); }
+            if (sel.getEstado() != EstadoReserva.PENDIENTE) {
+                mensajeError.setText("Solo se pueden rechazar reservas PENDIENTES.");
+                return;
+            }
+            reservaDAO.cambiarEstado(sel.getId(), EstadoReserva.RECHAZADA);
+            mensajeOk.setText("Reserva #" + sel.getId() + " rechazada.");
+            aplicarFiltro(comboFiltro.getValue());
         });
 
         aplicarFiltro("PENDIENTE");
@@ -101,22 +116,24 @@ public class AprobacionReservasVista {
         Label titulo = new Label("Aprobación de Reservas");
         titulo.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
-        VBox raiz = new VBox(10, titulo, barraFiltro, lista,
-                new HBox(12, btnAprobar, btnRechazar), mensajeError, mensajeOk);
+        VBox raiz = new VBox(10,
+                titulo, barraFiltro, lista,
+                new HBox(12, btnAprobar, btnRechazar),
+                mensajeError, mensajeOk);
         raiz.setPadding(new Insets(20));
 
-        stage.setScene(new Scene(raiz, 760, 460));
+        stage.setScene(new Scene(raiz, 780, 480));
         stage.setTitle("ReservaUNA — Aprobación de reservas");
     }
 
     private void aplicarFiltro(String filtro) {
+        List<Reserva> todas = reservaDAO.listarTodas(recursos, usuarios);
         if (filtro.equals("TODAS")) {
-            listaObservable.setAll(reservaServicio.listar());
+            listaObservable.setAll(todas);
         } else {
             EstadoReserva estado = EstadoReserva.valueOf(filtro);
             listaObservable.setAll(
-                reservaServicio.listar().stream()
-                    .filter(r -> r.getEstado() == estado).toList());
+                    todas.stream().filter(r -> r.getEstado() == estado).toList());
         }
     }
 }
